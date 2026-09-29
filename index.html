@@ -57,17 +57,30 @@
 
   // チェス風座標（例: "1a"）をインデックス（0〜41）に変換する関数
   function parsePosition(posStr) {
-    const match = posStr.trim().toLowerCase().match(/^([1-7])([a-f])$/);
-    if (!match) return null;
-
-    const rank = parseInt(match[1], 10); // 下からの行数 (1〜7)
-    const colLetter = match[2];          // 列英字 (a〜f)
-
-    // 上からの行インデックス (0〜6)
-    const row = 7 - rank;
-    // 列インデックス (0〜5)
-    const col = colLetter.charCodeAt(0) - 'a'.charCodeAt(0);
-
+    const str = posStr.trim().toLowerCase();
+  
+    let row;
+    let col;
+  
+    // A1形式
+    let match = str.match(/^([a-g])([1-6])$/);
+  
+    if (match) {
+      row = match[1].charCodeAt(0) - 'a'.charCodeAt(0);
+      col = parseInt(match[2], 10) - 1;
+    } else {
+      // 1A形式
+      match = str.match(/^([1-6])([a-g])$/);
+  
+      if (!match) {
+        return null;
+      }
+  
+      col = parseInt(match[1], 10) - 1;
+      row = match[2].charCodeAt(0) - 'a'.charCodeAt(0);
+    }
+  
+    // 7行 × 6列
     return row * 6 + col;
   }
 
