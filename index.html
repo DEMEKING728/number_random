@@ -36,11 +36,11 @@
 </head>
 <body>
   <h2>入力数字をランダム配置</h2>
-  <label for="inputCommands">コマンドを入力 (例: f:5, s:1a;12, f:33)</label><br />
-  <input type="text" id="inputCommands" placeholder="f:5, s:1a;12, f:33" />
+  <label for="inputCommands">コマンドを入力</label><br />
+  <input type="text" id="inputCommands" placeholder="f:5, s:a1;12,f:33" />
   <div class="help-text">
     ・<code>f:番号</code> → 前10マスのどこかに配置<br>
-    ・<code>s:位置;番号</code> → 指定位置に固定（例: 1a=最下行左端, 7f=最上行右端）
+    ・<code>s:位置;番号</code> → 指定位置に固定（例: A1=最上行左端, G6=最下行右端）
   </div>
   <button onclick="generateTable()">表示</button>
   <div id="result"></div>
@@ -55,7 +55,7 @@
     return arr;
   }
 
-  // チェス風座標（例: "1a"）をインデックス（0〜41）に変換する関数
+  // 座標（例: "1a"）をインデックス（0〜41）に変換する関数
   function parsePosition(posStr) {
     const str = posStr.trim().toLowerCase();
   
