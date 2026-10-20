@@ -2,17 +2,29 @@
 <html lang="ja">
 <head>
 <meta name="robots" content="noindex,nofollow">
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>数字配置ツール（7行×6列）</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>数字配置ツールっ</title>
+
 <style>
-  body { font-family: sans-serif; padding: 10px; max-width: 600px; margin: 0 auto; }
-  #result { overflow-x: auto; margin-top: 15px; }
+  body {
+    font-family: sans-serif;
+    padding: 10px;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  #result {
+    overflow-x: auto;
+    margin-top: 15px;
+  }
+
   table {
     border-collapse: collapse;
     width: 100%;
     table-layout: fixed;
   }
+
   td {
     border: 1px solid #ccc;
     padding: 8px 0;
@@ -20,6 +32,7 @@
     font-size: 1.2rem;
     font-weight: bold;
   }
+
   input, button {
     font-size: 1rem;
     padding: 0.6em;
@@ -27,154 +40,407 @@
     width: 100%;
     box-sizing: border-box;
   }
+
   .help-text {
     font-size: 0.85rem;
     color: #555;
     margin-top: 0.5em;
-    line-height: 1.4;
+    line-height: 1.6;
+  }
+
+  #error {
+    display: none;
+    margin-top: 15px;
+    padding: 12px;
+    border: 1px solid #d00;
+    background: #fff0f0;
+    color: #b00;
+    border-radius: 5px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
   }
 </style>
 </head>
+
 <body>
-  <h2>入力数字をランダム配置</h2>
-  <label for="inputCommands">コマンドを入力</label><br />
-  <input type="text" id="inputCommands" placeholder="f:5, s:a1;12,f:33" />
-  <div class="help-text">
-    ・<code>f:番号</code> → 前10マスのどこかに配置<br>
-    ・<code>s:位置;番号</code> → 指定位置に固定（例: A1=最上行左端, G6=最下行右端）
-  </div>
-  <button onclick="generateTable()">表示</button>
-  <div id="result"></div>
+
+<h2>入力数字をランダム配置</h2>
+
+<label for="inputCommands">コマンドを入力</label>
+
+<input
+  type="text"
+  id="inputCommands"
+  placeholder="例: s:A1;12,f:5,r:A1-C3;B2-D4;33"
+>
+
+<div class="help-text">
+  ・<code>s:位置;番号</code> → 指定位置に固定配置<br>
+  ・<code>f:番号</code> → 前10マスのどこかに配置<br>
+  ・<code>r:位置-位置;位置-位置;番号</code> → 指定した長方形の範囲からランダム配置<br>
+  ・位置は A1〜G6 または 1A〜6G の形式で指定<br>
+  ・コマンドはカンマ（,）で区切る<br>
+  ・優先順位は s → f → r。同じモードでは入力順を優先
+</div>
+
+<button onclick="generateTable()">表示</button>
+
+<div id="error" role="alert"></div>
+<div id="result"></div>
 
 <script>
+  const NUM_ROWS = 7;
+  const NUM_COLS = 6;
+  const TOTAL_CELLS = NUM_ROWS * NUM_COLS;
+
+  const FRONT_POSITIONS = [0, 1, 2, 3, 4, 5, 7, 8, 9, 10];
+
   function shuffle(array) {
     const arr = [...array];
+
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
+
     return arr;
   }
 
-  // 座標（例: "1a"）をインデックス（0〜41）に変換する関数
+  // 位置→インデックス
   function parsePosition(posStr) {
     const str = posStr.trim().toLowerCase();
-  
-    let row;
-    let col;
-  
-    // A1形式
+
     let match = str.match(/^([a-g])([1-6])$/);
-  
+
     if (match) {
-      row = match[1].charCodeAt(0) - 'a'.charCodeAt(0);
-      col = parseInt(match[2], 10) - 1;
-    } else {
-      // 1A形式
-      match = str.match(/^([1-6])([a-g])$/);
-  
-      if (!match) {
-        return null;
-      }
-  
-      col = parseInt(match[1], 10) - 1;
-      row = match[2].charCodeAt(0) - 'a'.charCodeAt(0);
+      const row = match[1].charCodeAt(0) - 97;
+      const col = parseInt(match[2], 10) - 1;
+      return row * NUM_COLS + col;
     }
-  
-    // 7行 × 6列
-    return row * 6 + col;
+
+    match = str.match(/^([1-6])([a-g])$/);
+
+    if (match) {
+      const col = parseInt(match[1], 10) - 1;
+      const row = match[2].charCodeAt(0) - 97;
+      return row * NUM_COLS + col;
+    }
+
+    return null;
+  }
+
+  function parseNumber(str) {
+    const value = str.trim();
+
+    if (!/^\d+$/.test(value)) {
+      return null;
+    }
+
+    const num = Number(value);
+
+    if (!Number.isInteger(num) || num < 1 || num > 42) {
+      return null;
+    }
+
+    return num;
+  }
+
+  // エラー表示
+  function showError(message) {
+    const errorElement = document.getElementById('error');
+
+    errorElement.textContent = '⚠️ 配置エラー：' + message;
+    errorElement.style.display = 'block';
+
+    document.getElementById('result').innerHTML = '';
+  }
+
+  function clearError() {
+    const errorElement = document.getElementById('error');
+
+    errorElement.textContent = '';
+    errorElement.style.display = 'none';
+  }
+
+  function getRectanglePositions(pos1, pos2) {
+    const index1 = parsePosition(pos1);
+    const index2 = parsePosition(pos2);
+
+    if (index1 === null || index2 === null) {
+      return null;
+    }
+
+    const row1 = Math.floor(index1 / NUM_COLS);
+    const col1 = index1 % NUM_COLS;
+
+    const row2 = Math.floor(index2 / NUM_COLS);
+    const col2 = index2 % NUM_COLS;
+
+    const minRow = Math.min(row1, row2);
+    const maxRow = Math.max(row1, row2);
+    const minCol = Math.min(col1, col2);
+    const maxCol = Math.max(col1, col2);
+
+    const positions = [];
+
+    for (let row = minRow; row <= maxRow; row++) {
+      for (let col = minCol; col <= maxCol; col++) {
+        positions.push(row * NUM_COLS + col);
+      }
+    }
+
+    return positions;
+  }
+
+  function parseCommands(rawInput) {
+    const commands = rawInput
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    const fixedCommands = [];
+    const frontCommands = [];
+    const rangeCommands = [];
+
+    for (const cmd of commands) {
+      if (cmd.startsWith('s:')) {
+        const parts = cmd.substring(2).split(';');
+
+        if (parts.length !== 2) {
+          return {
+            error: `コマンド「${cmd}」の形式が正しくありません。s:位置;番号 と指定してください。`
+          };
+        }
+
+        const position = parsePosition(parts[0]);
+        const num = parseNumber(parts[1]);
+
+        if (position === null || num === null) {
+          return {
+            error: `コマンド「${cmd}」の位置または番号が正しくありません。`
+          };
+        }
+
+        fixedCommands.push({
+          original: cmd,
+          position,
+          num
+        });
+
+      } else if (cmd.startsWith('f:')) {
+        const num = parseNumber(cmd.substring(2));
+
+        if (num === null) {
+          return {
+            error: `コマンド「${cmd}」の番号が正しくありません。f:番号 と指定してください。`
+          };
+        }
+
+        frontCommands.push({
+          original: cmd,
+          num
+        });
+
+      } else if (cmd.startsWith('r:')) {
+        const parts = cmd.substring(2).split(';');
+
+        if (parts.length < 2) {
+          return {
+            error: `コマンド「${cmd}」の形式が正しくありません。r:位置-位置;番号 と指定してください。`
+          };
+        }
+
+        const num = parseNumber(parts[parts.length - 1]);
+
+        if (num === null) {
+          return {
+            error: `コマンド「${cmd}」の番号が正しくありません。`
+          };
+        }
+
+        const ranges = [];
+
+        for (let i = 0; i < parts.length - 1; i++) {
+          const endpoints = parts[i].split('-');
+
+          if (endpoints.length !== 2) {
+            return {
+              error: `コマンド「${cmd}」の範囲指定「${parts[i]}」が正しくありません。位置-位置 と指定してください。`
+            };
+          }
+
+          const positions = getRectanglePositions(
+            endpoints[0],
+            endpoints[1]
+          );
+
+          if (positions === null) {
+            return {
+              error: `コマンド「${cmd}」の位置指定「${parts[i]}」が正しくありません。`
+            };
+          }
+
+          ranges.push(...positions);
+        }
+
+        const uniquePositions = [...new Set(ranges)];
+
+        rangeCommands.push({
+          original: cmd,
+          num,
+          positions: uniquePositions
+        });
+
+      } else {
+        return {
+          error: `コマンド「${cmd}」を認識できません。s:、f:、r: のいずれかを使用してください。`
+        };
+      }
+    }
+
+    return {
+      fixedCommands,
+      frontCommands,
+      rangeCommands
+    };
   }
 
   function generateTable() {
+    clearError();
+
     const rawInput = document.getElementById('inputCommands').value;
-    const commands = rawInput.split(',').map(s => s.trim()).filter(s => s.length > 0);
 
-    const numRows = 7;
-    const numCols = 6;
-    const totalCells = numRows * numCols;
+    const parsed = parseCommands(rawInput);
 
-    // 前10マスの定義 (0行目の全6マス + 1行目の1~4列目)
-    const frontPositions = [0, 1, 2, 3, 4, 5, 7, 8, 9, 10];
+    if (parsed.error) {
+      showError(parsed.error);
+      return;
+    }
 
-    const positionMap = {}; // index -> number
+    const {
+      fixedCommands,
+      frontCommands,
+      rangeCommands
+    } = parsed;
+
+    const positionMap = {};
     const usedNumbers = new Set();
-    const frontNumbers = [];
 
-    // --- コマンド解析 ---
-    for (const cmd of commands) {
-      if (cmd.startsWith('s:')) {
-        // s:(位置);(番号) モード
-        const content = cmd.substring(2);
-        const parts = content.split(';');
-        if (parts.length === 2) {
-          const idx = parsePosition(parts[0]);
-          const num = parseInt(parts[1].trim(), 10);
+    // s → f → r の順
+    const allCommands = [
+      ...fixedCommands,
+      ...frontCommands,
+      ...rangeCommands
+    ];
 
-          if (idx !== null && !isNaN(num) && num >= 1 && num <= 42) {
-            if (!positionMap.hasOwnProperty(idx) && !usedNumbers.has(num)) {
-              positionMap[idx] = num;
-              usedNumbers.add(num);
-            }
-          }
-        }
-      } else if (cmd.startsWith('f:')) {
-        // f:(番号) モード
-        const numStr = cmd.substring(2).trim();
-        const num = parseInt(numStr, 10);
-
-        if (!isNaN(num) && num >= 1 && num <= 42) {
-          if (!usedNumbers.has(num)) {
-            frontNumbers.push(num);
-            usedNumbers.add(num);
-          }
-        }
+    for (const cmd of fixedCommands) {
+      if (usedNumbers.has(cmd.num)) {
+        showError(
+          `コマンド「${cmd.original}」の数字 ${cmd.num} は、先行する s: コマンドですでに使用されています。`
+        );
+        return;
       }
+
+      if (Object.prototype.hasOwnProperty.call(positionMap, cmd.position)) {
+        showError(
+          `コマンド「${cmd.original}」の指定位置には、すでに別の数字が固定配置されています。`
+        );
+        return;
+      }
+
+      positionMap[cmd.position] = cmd.num;
+      usedNumbers.add(cmd.num);
     }
 
-    // --- f: モードの配置処理 ---
-    // 前10マスのうち、s: モードで埋まっていないマスを抽出
-    const availableFrontPositions = frontPositions.filter(pos => !positionMap.hasOwnProperty(pos));
-    const shuffledFrontPositions = shuffle(availableFrontPositions);
+    for (const cmd of frontCommands) {
+      if (usedNumbers.has(cmd.num)) {
+        showError(
+          `コマンド「${cmd.original}」の数字 ${cmd.num} は、優先順位の高いコマンドですでに使用されています。`
+        );
+        return;
+      }
 
-    const fPlaceCount = Math.min(frontNumbers.length, shuffledFrontPositions.length);
-    for (let i = 0; i < fPlaceCount; i++) {
-      positionMap[shuffledFrontPositions[i]] = frontNumbers[i];
+      const candidates = FRONT_POSITIONS.filter(
+        pos => !Object.prototype.hasOwnProperty.call(positionMap, pos)
+      );
+
+      if (candidates.length === 0) {
+        showError(
+          `コマンド「${cmd.original}」は配置できません。前10マスがすべて埋まっています。`
+        );
+        return;
+      }
+
+      const selected = shuffle(candidates)[0];
+
+      positionMap[selected] = cmd.num;
+      usedNumbers.add(cmd.num);
     }
 
-    // --- 残りマスのランダム埋め処理 ---
+    for (const cmd of rangeCommands) {
+      if (usedNumbers.has(cmd.num)) {
+        showError(
+          `コマンド「${cmd.original}」の数字 ${cmd.num} は、優先順位の高いコマンドですでに使用されています。`
+        );
+        return;
+      }
+
+      const candidates = cmd.positions.filter(
+        pos => !Object.prototype.hasOwnProperty.call(positionMap, pos)
+      );
+
+      if (candidates.length === 0) {
+        showError(
+          `コマンド「${cmd.original}」は配置できません。指定された範囲内に空いているマスがありません。`
+        );
+        return;
+      }
+
+      const selected = shuffle(candidates)[0];
+
+      positionMap[selected] = cmd.num;
+      usedNumbers.add(cmd.num);
+    }
+
     const unusedNumbers = [];
-    for (let i = 1; i <= 42; i++) {
-      if (!usedNumbers.has(i)) {
-        unusedNumbers.push(i);
+
+    for (let num = 1; num <= 42; num++) {
+      if (!usedNumbers.has(num)) {
+        unusedNumbers.push(num);
       }
     }
+
     const shuffledUnused = shuffle(unusedNumbers);
 
-    const finalList = new Array(totalCells);
+    const finalList = new Array(TOTAL_CELLS);
     let unusedIndex = 0;
 
-    for (let i = 0; i < totalCells; i++) {
-      if (positionMap.hasOwnProperty(i)) {
+    for (let i = 0; i < TOTAL_CELLS; i++) {
+      if (Object.prototype.hasOwnProperty.call(positionMap, i)) {
         finalList[i] = positionMap[i];
       } else {
         finalList[i] = shuffledUnused[unusedIndex++];
       }
     }
 
-    // --- テーブル描画 ---
-    let html = "<table>";
-    for (let row = 0; row < numRows; row++) {
-      html += "<tr>";
-      for (let col = 0; col < numCols; col++) {
-        const index = row * numCols + col;
+    let html = '<table>';
+
+    for (let row = 0; row < NUM_ROWS; row++) {
+      html += '<tr>';
+
+      for (let col = 0; col < NUM_COLS; col++) {
+        const index = row * NUM_COLS + col;
         html += `<td>${finalList[index]}</td>`;
       }
-      html += "</tr>";
+
+      html += '</tr>';
     }
-    html += "</table>";
+
+    html += '</table>';
 
     document.getElementById('result').innerHTML = html;
   }
 </script>
+
 </body>
 </html>
