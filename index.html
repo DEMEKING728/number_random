@@ -64,24 +64,13 @@
 
 <body>
 
-<h2>入力数字をランダム配置</h2>
-
-<label for="inputCommands">コマンドを入力</label>
+<h2>らんだむ配置つーる</h2>
 
 <input
   type="text"
   id="inputCommands"
   placeholder="例: s:A1;12,f:5,r:A1-C3;B2-D4;33"
 >
-
-<div class="help-text">
-  ・<code>s:位置;番号</code> → 指定位置に固定配置<br>
-  ・<code>f:番号</code> → 前10マスのどこかに配置<br>
-  ・<code>r:位置-位置;位置-位置;番号</code> → 指定した長方形の範囲からランダム配置<br>
-  ・位置は A1〜G6 または 1A〜6G の形式で指定<br>
-  ・コマンドはカンマ（,）で区切る<br>
-  ・優先順位は s → f → r。同じモードでは入力順を優先
-</div>
 
 <button onclick="generateTable()">表示</button>
 
